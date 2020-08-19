@@ -18,3 +18,4 @@ R:  O(1)
 Podemos considerar um vetor como uma FILA?
 R: Sim, inclusive muitas vezes é utilizado o mecanismo de vetor para implementar uma fila.
 
+
