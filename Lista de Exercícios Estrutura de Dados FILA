@@ -1,0 +1,20 @@
+1) Após conhecer a estrutura de FILA, responda as seguintes perguntas:
+
+Por que FILA é conhecida como estrutura FIFO ?
+R:  Pois o primeiro que entrou será o primeiro a sair.
+
+Qual é a complexidade do algoritmo para inserir na FILA? 
+R: O(1)
+
+Qual é a complexidade do algoritmo para remover na FILA?
+R: O(1)
+
+Qual é a complexidade para imprimir todos os elementos da FILA?
+R: O(1)
+
+Qual é a complexidade para consultar o topo da FILA?
+R:  O(1)
+
+Podemos considerar um vetor como uma FILA?
+R: Sim, inclusive muitas vezes é utilizado o mecanismo de vetor para implementar uma fila.
+
