@@ -1,0 +1,474 @@
+#include<stdio.h>
+#include<stdlib.h>
+#include<string.h>
+#include<time.h>
+
+typedef struct {
+   int comeco;
+   int ocultas;
+   int fim;
+   int podeEntrar;
+   int podeSair;
+} Pilha;
+
+typedef int Carta;
+
+typedef struct {
+   int valor;
+   int virada;     /*1 - Virada // 0 - Não é vista */
+   Pilha *pilha;
+} Informacao;
+
+Informacao *novaInformacao(int valor, int virada) {
+   Informacao *i = malloc(sizeof*i);
+   i->valor = valor;
+   i->virada = virada;
+   i->pilha = NULL;
+   return i;
+}
+
+Informacao **baralho;
+Pilha pilhaJogo[7];
+Pilha pilhaSaida;
+
+
+int podeSaida[4];
+int ultimoSaida[4];
+
+Pilha estoqueDescarte;
+
+int podeMoverCarta(Carta carta, Pilha b);
+
+int podeMoverPilha(Pilha a, Pilha b);
+
+int procuraTopo(int valor, Pilha pilha);
+
+int podeSair(int valor);
+
+void mudaFinal(Pilha *pilha);
+
+void movePilha(Pilha *a, Pilha *b);
+
+void moveCarta(Informacao *carta, int posicao, int meio);
+
+void moveSairDescarte();
+
+void pescaGrimorio();
+
+void imprimeJogo();
+
+void imprimeEstoqueDescarta();
+
+void inicializaPaciencia();
+
+void imprimePilha(Pilha pilha);
+
+void imprimeSaida(int pilha);
+
+void imprimeCarta(int valor, int virada);
+
+int podeMoverCarta(Carta carta, Pilha b) {
+   Carta topoB = b.fim - 1;
+   int va = baralho[carta]->valor, vb ;
+   if(baralho[carta]->valor%13 == 12) {
+      if(b.comeco == b.fim)
+	 return 1;
+      return 0;
+   }
+   if(b.comeco == b.fim)
+      return 0;
+   vb = baralho[topoB]->valor;
+   if(va%13 == (vb%13-1) && (va/13)%2 != (vb/13)%2)
+      return 1;
+   return 0;
+}
+
+int podeMoverPilha(Pilha a, Pilha b) {
+   Carta comecoA  = a.comeco + a.ocultas;
+
+   if(a.comeco == a.fim)
+      return 0;
+
+   if(baralho[comecoA]->valor%13 == 12 && a.comeco == comecoA) {
+      return 0;
+   }
+   return podeMoverCarta(comecoA, b);
+}
+
+int procuraTopo(int valor, Pilha pilha) {
+   Carta topo = pilha.fim - 1;
+   if(pilha.comeco == pilha.fim)
+      return 0;
+
+   return baralho[topo]->valor == valor;
+}
+
+int podeSair(int valor) {
+   int naipe = valor/13;
+   if(ultimoSaida[naipe] == valor%13)
+      return 1;
+   return 0;
+}
+
+void mudaFinal(Pilha *pilha) {
+   Carta topo = pilha->fim -1;
+   baralho[topo]->pilha = &pilhaSaida;
+   pilha->fim--;
+
+   ultimoSaida[(baralho[topo]->valor)/13]++;
+   if(ultimoSaida[(baralho[topo]->valor)/13] != 13)
+      podeSaida[(baralho[topo]->valor)/13] = 1;
+   else
+      podeSaida[(baralho[topo]->valor)/13] = 0;
+
+   if(pilha->fim == (pilha->comeco + pilha->ocultas) && pilha->fim != pilha->comeco) {
+      pilha->ocultas--;
+      topo = pilha->fim -1;
+      baralho[topo]->virada = 1;
+   }
+}
+
+
+int procuraVazio() {
+   int i;
+   for(i=0;i<60;i++)
+      if(baralho[i]==NULL)
+	 break;
+   return i;
+}
+
+void movePilha(Pilha *a, Pilha *b) {
+   Pilha auxiliar;
+   int i, vazio;
+   auxiliar.fim = a->fim;
+   auxiliar.comeco = a->comeco + a->ocultas;
+
+   a->fim = a->comeco + a->ocultas;
+   if(a->ocultas) {
+      baralho[a->comeco + a->ocultas]->virada = 1;
+      a->ocultas--;
+   }
+
+   for(i=auxiliar.comeco;i<auxiliar.fim;i++) {
+      baralho[i]->pilha = &auxiliar;
+   }
+   for(i=auxiliar.fim-1;i>=auxiliar.comeco;i--) {
+      Informacao *carta = baralho[i];
+      baralho[i] = NULL;
+      carta->pilha = b;
+
+      if(b->fim == b->comeco) {
+	 vazio = procuraVazio();
+	 b->fim = vazio + 1;
+	 b->comeco = vazio;
+	 b->ocultas = 0;
+	 baralho[vazio] = carta;
+	 continue;
+      }
+
+      moveCarta(carta, b->fim, 1);
+   }
+   b->podeEntrar = a->podeEntrar;
+   b->podeSair = a->podeSair || b->podeSair;
+   a->podeEntrar = 1;
+   a->podeSair = 1;
+}
+
+void moveCarta(Informacao *carta, int posicao, int meio) {
+   Informacao *proxima;
+
+
+   int mesmaPilha, proximaPosicao = posicao + 1;
+
+   if(posicao == estoqueDescarte.comeco) {
+      moveCarta(carta, estoqueDescarte.fim, meio);
+      return;
+   }
+
+   if(carta->pilha==&pilhaSaida) {
+      posicao = procuraVazio();
+      baralho[posicao] = carta;
+      return;
+   }
+
+   carta->pilha->fim = posicao+1;
+
+   if(baralho[posicao]==NULL) {
+      baralho[posicao]=carta;
+      return;
+   } else {
+      mesmaPilha = baralho[posicao]->pilha == carta->pilha;
+      proxima = baralho[posicao];
+      imprimeCarta(proxima->valor, 1);
+      if(!mesmaPilha) {
+	 proxima->pilha->comeco = proximaPosicao;
+      }
+
+      baralho[posicao] = carta;
+      moveCarta(proxima, proximaPosicao, mesmaPilha);
+   }
+
+}
+
+void moveSairDescarte() {
+   int valor = baralho[estoqueDescarte.fim -1]->valor;
+   baralho[estoqueDescarte.fim -1]->pilha = &pilhaSaida;
+   ultimoSaida[valor/13]+=1;
+   podeSaida[valor/13]=1;
+
+   estoqueDescarte.fim--;
+}
+
+
+void pescaGrimorio() {
+   Informacao *carta = baralho[estoqueDescarte.fim];
+
+   if(estoqueDescarte.comeco == 59)
+      return;
+
+   baralho[estoqueDescarte.fim] = baralho[estoqueDescarte.comeco + 1];
+   baralho[estoqueDescarte.fim]->virada = 1;
+   baralho[estoqueDescarte.comeco + 1] = NULL;
+   if(carta!=NULL) {
+      if(baralho[estoqueDescarte.comeco-1]==NULL || baralho[estoqueDescarte.comeco-1]->pilha != carta->pilha) {
+	 carta->pilha->comeco = estoqueDescarte.fim +1;
+      }
+      imprimeCarta(carta->valor, 1);
+
+      moveCarta(carta, estoqueDescarte.fim + 1, 1);
+   }
+   estoqueDescarte.fim++;
+   estoqueDescarte.comeco++;
+}
+
+
+void imprimeJogo() {
+   int i;
+   printf("* * * * * * * * * * * * * * * * * * * * * * * * * * * * * *\n\n");
+   imprimeEstoqueDescarta();
+   printf("\nPilhas de Jogo\n");
+   for(i=0;i<7;i++) {
+      printf("%d : ",i+1);
+      imprimePilha(pilhaJogo[i]);
+   }
+   printf("\nPilhas de Saida\n");
+   for(i=0;i<4;i++) {
+      imprimeSaida(i);
+   }
+   printf("--\n");
+}
+
+void imprimeEstoqueDescarta() {
+   int i;
+   printf("Pilha de Estoque\n");
+   for(i=59;i>estoqueDescarte.comeco;i--) {
+      imprimeCarta(baralho[i]->valor, baralho[i]->virada);
+      printf(" ");
+   }
+   printf("\n\n");
+   printf("Pilha de Descarte\n");
+   for(i=0;i<estoqueDescarte.fim;i++) {
+      imprimeCarta(baralho[i]->valor, baralho[i]->virada);
+      printf(" ");
+   }
+   printf("\n\n");
+}
+
+void imprimePilha(Pilha pilha) {
+   int i;
+   for(i=pilha.comeco;i<pilha.fim;i++) {
+      imprimeCarta(baralho[i]->valor, baralho[i]->virada);
+      printf(" ");
+   }
+   printf("\n");
+}
+
+void imprimeSaida(int pilha) {
+   int i;
+   for(i=0;i<ultimoSaida[pilha];i++) {
+      imprimeCarta(pilha*13 + i, 1);
+      printf(" ");
+   }
+   printf("\n");
+}
+
+   char getNaipe(int valor) {
+      if(valor/13 == 0)
+	 return 'O';
+      if(valor/13 == 1)
+	 return 'E';
+      if(valor/13 == 2)
+	 return 'C';
+      return 'P';
+   }
+void imprimeCarta(int valor, int virada) {
+   printf("[%2d%c %c]",valor%13+1, getNaipe(valor), virada ? ' ' : 'X');
+}
+
+void atualizaPilha(int pi, int pf, int pilha) {
+   for(;pi<=pf;pi++) {
+      baralho[pi]->pilha = &pilhaJogo[pilha];
+   }
+}
+
+void inicializaPaciencia() {
+   int cartas[52], i, pos, aux;
+
+   for(i=0;i<52;i++)
+      cartas[i] = i;
+
+   for(i=0;i<51;i++) {
+      pos = i + rand()%(52 - i);
+      aux = cartas[i];
+      cartas[i] = cartas[pos];
+      cartas[pos] = aux;
+   }
+
+   baralho = malloc(60*(sizeof*baralho));
+
+   for(i=1;i<=52;i++) {
+      baralho[60 - i] = novaInformacao(cartas[i-1], 0);
+   }
+   for(;i<=60;i++)
+      baralho[60 - i] = NULL;
+
+   pos = 35;
+
+   for(i=0;i<7;i++) {
+      pilhaJogo[i].comeco  = pos - i;
+      pilhaJogo[i].fim     = pos + 1;
+      pilhaJogo[i].ocultas = i;
+      pilhaJogo[i].podeSair = 1;
+      pilhaJogo[i].podeEntrar = 1;
+      atualizaPilha(pos - i, pos, i);
+      baralho[pilhaJogo[i].comeco + pilhaJogo[i].ocultas]->virada = 1;
+      pos-=(i+1);
+   }
+
+   estoqueDescarte.comeco = 35;
+   estoqueDescarte.fim = 0;
+
+   for(i=0;i<4;i++) {
+      podeSaida[i] = 1;
+      ultimoSaida[i] = 0;
+   }
+
+}
+
+
+void jogar() {
+   int i,j, houveMovimento;
+   while(1) {
+
+      if(estoqueDescarte.fim == 0)
+	 pescaGrimorio();
+
+      imprimeJogo();
+      houveMovimento = 0;
+
+      for(i=0;i<4 && !houveMovimento ;i++) {
+	 if(podeSaida[i] == 1) {
+	    for(j=0;j<7;j++) {
+	       if(procuraTopo(i*13 + ultimoSaida[i],pilhaJogo[j])) {
+		  printf("Colocar carta da pilha %d para pilha final\n",j+1);
+		  mudaFinal(&pilhaJogo[j]);
+		  houveMovimento = 1;
+		  break;
+	       }
+	    }
+	    if(!houveMovimento)
+	       podeSaida[i] = 0;
+	 }
+      }
+
+      if(houveMovimento)
+	 continue;
+
+      for(i=0;i<7 && !houveMovimento ;i++) {
+	 if(pilhaJogo[i].podeSair) {
+	    for(j=0;j<7;j++) {
+	       if(j!=i && podeMoverPilha(pilhaJogo[i], pilhaJogo[j]) ) {
+		  printf("Colocar pilha %d na pilha %d\n", i+1, j+1);
+		  movePilha(&pilhaJogo[i], &pilhaJogo[j]);
+		  houveMovimento = 1;
+		  break;
+	       }
+	    }
+	    if(!houveMovimento && podeSair( baralho[pilhaJogo[i].comeco + pilhaJogo[i].ocultas]->valor) )
+	    {
+	       mudaFinal(&pilhaJogo[i]);
+	       houveMovimento = 1;
+	       break;
+	    }
+	    if(!houveMovimento)
+	       pilhaJogo[i].podeSair = 0;
+	 }
+	 if(pilhaJogo[i].podeEntrar && !houveMovimento) {
+	    for(j=0;j<7;j++) {
+	       if(j!=i && podeMoverPilha(pilhaJogo[i], pilhaJogo[i]) ) {
+		  printf("Movendo da pilha %d pra pilha %d\n", j,i);
+		  movePilha(&pilhaJogo[j], &pilhaJogo[i]);
+		  houveMovimento = 1;
+		  break;
+	       }
+	    }
+	    if(!houveMovimento)
+	       pilhaJogo[i].podeEntrar = 0;
+	 }
+      }
+
+      if(houveMovimento)
+	 continue;
+
+      if(estoqueDescarte.fim != 0) {
+	 imprimeCarta(baralho[estoqueDescarte.fim-1]->valor, 1);
+	 if(podeSair( baralho[estoqueDescarte.fim-1]->valor )) {
+	    printf("Colocar carta da pilha de descarta na pilha de saida\n");
+	    moveSairDescarte();
+	    houveMovimento = 1;
+	 }
+	 if(!houveMovimento) {
+	    for(i=0;i<7;i++) {
+	       if(podeMoverCarta(estoqueDescarte.fim -1, pilhaJogo[i])) {
+		  Informacao *carta;
+		  printf("Carta da pilha de descarte para a pilha de jogo Numero %d\n", i+1);
+		  carta = baralho[estoqueDescarte.fim -1];
+		  baralho[estoqueDescarte.fim -1]= NULL;
+		  carta->pilha = &pilhaJogo[i];
+		  if(carta->pilha->comeco == carta->pilha->fim) {
+		     int vazio = procuraVazio();
+		     carta->pilha->comeco = vazio;
+		     carta->pilha->fim = vazio +1;
+		     moveCarta(carta, vazio, 1);
+
+		  } else {
+		     moveCarta(carta, carta->pilha->fim, 1);
+		  }
+		  estoqueDescarte.fim--;
+		  houveMovimento = 1;
+		  break;
+	       }
+	    }
+	 }
+      }
+      if(houveMovimento == 1)
+	 continue;
+
+      if(estoqueDescarte.comeco == 59)
+	 break;
+
+      printf("pescando uma carta\n");
+      pescaGrimorio();
+
+   }
+}
+
+
+int main() {
+   int semente = 1133229541;
+   srand(semente);
+   inicializaPaciencia();
+   jogar();
+   system("pause");
+   return 0;
+}
